@@ -1,0 +1,14 @@
+{
+  "name": "programmable-banking",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "func start",
+    "test": "echo \"No tests yet...\""
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "googleapis": "^144.0.0"
+  },
+  "main": "src/{index.js,functions/*.js}"
+}
