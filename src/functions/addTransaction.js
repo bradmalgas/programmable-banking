@@ -68,7 +68,7 @@ app.http("addTransaction", {
             [
               transactionData.date,
               transactionData.expense,
-              transactionData.amount,
+              (transactionData.amount/100),
               transactionData.category,
             ],
           ],
