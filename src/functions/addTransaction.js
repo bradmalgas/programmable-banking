@@ -7,8 +7,7 @@ app.http("addTransaction", {
   handler: async (request, context) => {
     try {
       // Read the body stream and convert it to a JSON object
-      const req = await request.text();
-      const input = JSON.parse(req);
+      const input = await request.json();
 
       // Extract the dateTime from input (or use a default if not provided)
       const isoDate = input?.dateTime ?? null;
