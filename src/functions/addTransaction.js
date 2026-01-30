@@ -2,7 +2,7 @@ const { app } = require("@azure/functions");
 const { google } = require("googleapis");
 
 app.http("addTransaction", {
-  methods: ["GET", "POST"],
+  methods: ["POST"],
   authLevel: "function",
   handler: async (request, context) => {
     try {
