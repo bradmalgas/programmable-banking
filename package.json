@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@azure/functions": "^4.0.0",
+    "@google/generative-ai": "^0.24.1",
     "googleapis": "^144.0.0"
   },
   "main": "src/{index.js,functions/*.js}"
