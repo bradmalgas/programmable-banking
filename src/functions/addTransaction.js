@@ -2,6 +2,10 @@ const { app } = require("@azure/functions");
 const { google } = require("googleapis");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+function generateId(date, merchant, cents) {
+  return `${date}_${merchant.replace(/[^a-z0-9]/gi, '').toUpperCase()}_${cents}`;
+}
+
 app.http("addTransaction", {
   methods: ["POST"],
   authLevel: "function",
