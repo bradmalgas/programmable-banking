@@ -69,75 +69,105 @@ app.http("addTransaction", {
   authLevel: "function",
   handler: async (request, context) => {
     try {
-      // Read the body stream and convert it to a JSON object
       const input = await request.json();
 
-      // Extract the dateTime from input (or use a default if not provided)
-      const isoDate = input?.dateTime ?? null;
-
-      // If isoDate exists, format it, otherwise use 'N/A'
-      const formattedDate = isoDate
-        ? `${new Date(isoDate).toLocaleDateString("en-US", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })}, ${new Date(isoDate).toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          })}`
-        : "N/A";
-
-      const transactionData = {
-        date: formattedDate,
-        expense: `${input.merchant?.name ?? "Unknown"} - ${
-          input.merchant?.city ?? "Unknown"
-        }`,
-        amount: input.centsAmount ?? 0,
-        category: input.merchant.category?.name ?? "Uncategorized",
-      };
-
-      // Parse the Google service account key
-      context.log("Parsing service account key...");
-      const serviceAccountKey = JSON.parse(
-        process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-      );
-      context.log("Service account key parsed successfully.");
+      const date = input.dateTime;
+      const merchant = input.merchant.name;
+      const cents = input.centsAmount;
+      const city = input.merchant.city || "Unknown";
+      const merchantCategory = input.merchant.category || "Unknown";
+      const id = generateId(date, merchant, cents);
 
       // Authenticate with Google
-      context.log("Authenticating with Google...");
       const auth = new google.auth.GoogleAuth({
-        credentials: serviceAccountKey,
+        credentials: GOOGLE_CREDS,
         scopes: ["https://www.googleapis.com/auth/spreadsheets"],
       });
-      context.log("Authentication successful.");
 
       // Initialize Google Sheets API
       const sheets = google.sheets({ version: "v4", auth });
+      const spreadsheetData = await sheets.spreadsheets.values.batchGet({
+        spreadsheetId: SPREADSHEET_ID,
+        ranges: ["raw_transactions!A:A", "lookup_map!A:C"],
+      });
 
-      // Append the transaction data to a specific sheet
-      const spreadsheetId = process.env.SPREADSHEET_ID;
-      const range = "Sheet1!A1";
+      const idRowValues = spreadsheetData.data.valueRanges[0].values || [];
+      const lookupMapValues = spreadsheetData.data.valueRanges[1].values || [];
 
-      context.log("Appending data to Google Sheets:", transactionData);
+      // Remove headers / row names
+      const idRows = idRowValues.slice(1);
+      const mapRows = lookupMapValues.slice(1);
 
-      const response = await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range,
-        valueInputOption: "RAW",
+      // Check for duplicate transaction ID
+      const recentIds = idRows.slice(-50).flat();
+      if (recentIds.includes(id)) {
+        context.log("Duplicate transaction detected, skipping entry.");
+        context.res = {
+          status: 200,
+          body: "Duplicate transaction, not recorded.",
+        };
+        return context.res;
+      }
+
+      // Clean up values
+      const cleanedMerchant = merchant
+        ? merchant.toUpperCase()
+        : "UNKNOWN";
+      const randAmount = (cents / 100).toFixed(2);
+
+      let category = "Uncategorized";
+      let sentiment = "Discretionary";
+      let confidence = 0.0;
+      let source = "LLM";
+
+      // Sort lookup map by length of merchant name (longest first)
+      mapRows.sort((a, b) => {
+        const keyA = a[0] ? a[0].length : 0;
+        const keyB = b[0] ? b[0].length : 0;
+        return keyB - keyA;
+      });
+
+      // Attempt to find a match in the lookup map
+      const foundRule = mapRows.find((row) => {
+        if (!row[0]) return false;
+        return cleanedMerchant.includes(row[0].toUpperCase());
+      });
+
+      // Use the found rule if available, otherwise fallback to Gemini
+      if (foundRule) {
+        category = foundRule[1];
+        sentiment = foundRule[2];
+        confidence = 1.0;
+        source = "MAP";
+      } else {
+        const aiResult = await askGemini(cleanedMerchant, merchantCategory, randAmount);
+        category = aiResult.category;
+        sentiment = aiResult.sentiment;
+        confidence = aiResult.confidence;
+      }
+
+      // Append the new transaction data to the Google Sheet
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "raw_transactions!A:J",
+        valueInputOption: "USER_ENTERED",
         requestBody: {
           values: [
             [
-              transactionData.date,
-              transactionData.expense,
-              (transactionData.amount/100),
-              transactionData.category,
+              id,
+              date,
+              merchant,
+              randAmount,
+              category,
+              sentiment,
+              confidence,
+              source,
+              city,
+              new Date().toISOString(),
             ],
           ],
         },
       });
-
-      context.log("Data appended successfully");
 
       // Send a successful response back to the client
       context.res = {
@@ -147,7 +177,7 @@ app.http("addTransaction", {
 
       context.log("Success message returned");
     } catch (error) {
-      context.log("Error writing to Google Sheets:", error);
+      context.log("Error writing to Google Sheets:", error.message);
       context.res = {
         status: 500,
         body: "Failed to record transaction data.",
