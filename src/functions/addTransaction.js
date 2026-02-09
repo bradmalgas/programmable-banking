@@ -1,5 +1,6 @@
 const { app } = require("@azure/functions");
 const { google } = require("googleapis");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 app.http("addTransaction", {
   methods: ["POST"],
