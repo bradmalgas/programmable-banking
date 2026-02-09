@@ -2,6 +2,10 @@ const { app } = require("@azure/functions");
 const { google } = require("googleapis");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const GOOGLE_CREDS = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
 function generateId(date, merchant, cents) {
   return `${date}_${merchant.replace(/[^a-z0-9]/gi, '').toUpperCase()}_${cents}`;
 }
