@@ -6,8 +6,62 @@ const GOOGLE_CREDS = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+const VALID_CATEGORIES = [ // Temp: hardcoded list
+    "Groceries", 
+    "Eating Out", 
+    "Alcohol", 
+    "Transport & Fuel", 
+    "Car & Maintenance", 
+    "Internet & Mobile", 
+    "Tech & Hardware", 
+    "Health & Medical", 
+    "Personal Care",
+    "Home & Utilities", 
+    "Entertainment", 
+    "Travel", 
+    "Subscriptions",
+    "Online Shopping",
+    "Clothing",
+    "Uncategorized"
+];
+
 function generateId(date, merchant, cents) {
   return `${date}_${merchant.replace(/[^a-z0-9]/gi, '').toUpperCase()}_${cents}`;
+}
+
+async function askGemini(merchantName, merchantCategory, amountVal) {
+    try {
+        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash-lite",
+            generationConfig: { responseMimeType: "application/json" }
+        });
+
+        const prompt = `You are a strict financial classifier for a personal budget.
+        
+        Transaction Details:
+        - Merchant: "${merchantName}"
+        - Merchant Classification: "${merchantCategory}"
+        - Amount: R"${amountVal}"
+        
+        Allowed Categories: ${JSON.stringify(VALID_CATEGORIES)}
+        
+        Task:
+        1. Analyze the Merchant and Merchant Classification.
+        2. Assign the most accurate Category from the allowed list.
+        3. Determine sentiment (Essential vs Discretionary).
+        4. Return JSON: {"category": "String", "sentiment": "String", "confidence": Number}
+        `;
+
+        const result = await model.generateContent(prompt);
+        const text = await result.response.text();
+        return JSON.parse(text);
+
+    } catch (error) {
+        console.error("Gemini Error:", error);
+        return { category: "Uncategorized", sentiment: "Discretionary", confidence: 0.0 };
+    }
 }
 
 app.http("addTransaction", {
