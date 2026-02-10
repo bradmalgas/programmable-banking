@@ -24,8 +24,19 @@ export async function getBudgetStatus(month: string): Promise<BudgetOverview> {
         sheets.readRange('monthly_stats!E1:ZZ20'),
     ]);
 
-    console.log("Budget Values:", budgetValues);
-    console.log("Stat Values:", statValues);
+    const actualsMap = new Map<string, number>();
+    const headerRow = statValues[0] || [];
+    const monthColIndex = headerRow.indexOf(month);
+
+    if (monthColIndex === -1) {
+        throw new Error(`Month ${month} not found in monthly_stats sheet`);
+    }
+
+    statValues.slice(1).forEach(row => {
+        const category = row[0];
+        const actual = parseFloat(row[monthColIndex]) || 0;
+        if (category) actualsMap.set(category, actual);
+    });
 
     return {
         month,
