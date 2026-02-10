@@ -1,11 +1,13 @@
 import { GoogleSheetsClient } from "../sheets/googleSheetsClient";
 
-interface BudgetRow {
+type BudgetStatus = "OK" | "OVER_BUDGET" | "WARNING";
+
+interface BudgetItem {
   category: string;
   target: number;
   actual: number;
   remaining: number;
-  status: "OK" | "OVER_BUDGET" | "WARNING";
+  status: BudgetStatus;
 }
 
 interface BudgetOverview {
@@ -13,43 +15,65 @@ interface BudgetOverview {
   totalTarget: number;
   totalActual: number;
   totalRemaining: number;
-  rows: BudgetRow[];
+  categorizedSpending: BudgetItem[];
 }
 
+/**
+ * Retrieves the budget status for a specified month from Google Sheets.
+ * 
+ * Fetches budget targets from the "budget" sheet and actual spending data from the 
+ * "monthly_stats" sheet, then calculates remaining budget and status for each category.
+ * 
+ * @param month - The month name to retrieve budget status for in format YYYY_MM (must match a column header in monthly_stats sheet)
+ * @returns A promise that resolves to a BudgetOverview containing:
+ *   - month: The requested month
+ *   - totalTarget: Sum of all budget targets
+ *   - totalActual: Sum of all actual spending
+ *   - totalRemaining: Difference between total target and total actual
+ *   - categorizedSpending: Array of BudgetItem objects with category, target, actual, remaining, and status
+ * 
+ * @throws {Error} If the specified month is not found in the monthly_stats sheet
+ * 
+ * @example
+ * ```typescript
+ * const budgetStatus = await getBudgetStatus("2026-01");
+ * console.log(budgetStatus.totalRemaining); // Budget remaining for January
+ * ```
+ */
 export async function getBudgetStatus(month: string): Promise<BudgetOverview> {
   const sheets = new GoogleSheetsClient();
 
-  const [budgetValues, statValues] = await Promise.all([
+  const [budgetRows, monthlyStatsData] = await Promise.all([
     sheets.readRange("budget!A2:B17"),
     sheets.readRange("monthly_stats!E1:ZZ20"),
   ]);
-  const targetsMap = new Map<string, number>();
-  budgetValues.forEach((row) => {
-    targetsMap.set(row[0], parseFloat(row[1] || "0"));
+  const budgetTargetsMap = new Map<string, number>();
+  budgetRows.forEach((budgetRow) => {
+    budgetTargetsMap.set(budgetRow[0], parseFloat(budgetRow[1] || "0"));
   });
-  const actualsMap = new Map<string, number>();
-  const headerRow = statValues[0] || [];
-  const monthColIndex = headerRow.indexOf(month);
+  const actualSpendingMap = new Map<string, number>();
+  const monthHeaders = monthlyStatsData[0] || [];
+  const requestedMonthColIndex = monthHeaders.indexOf(month);
 
-  if (monthColIndex === -1) {
+  if (requestedMonthColIndex === -1) {
     throw new Error(`Month ${month} not found in monthly_stats sheet`);
   }
 
-  statValues.slice(1).forEach((row) => {
-    const category = row[0];
-    const actual = parseFloat(row[monthColIndex]) || 0;
-    if (category) actualsMap.set(category, actual);
+  monthlyStatsData.slice(1).forEach((statRow) => {
+    const category = statRow[0];
+    const actual = parseFloat(statRow[requestedMonthColIndex]) || 0;
+    if (category) actualSpendingMap.set(category, actual);
   });
 
-  const rows: BudgetRow[] = [];
+  const rows: BudgetItem[] = [];
   let totalTarget = 0;
   let totalActual = 0;
 
-  for (const [category, target] of targetsMap.entries()) {
-    const actual = actualsMap.get(category) || 0;
+  for (const [category, target] of budgetTargetsMap.entries()) {
+    const actual = actualSpendingMap.get(category) || 0;
     const remaining = target - actual;
 
-    let status: BudgetRow["status"] = "OK";
+    let status: BudgetStatus = "OK";
     if (remaining < 0) status = "OVER_BUDGET";
     else if (remaining < target * 0.2) status = "WARNING";
 
@@ -64,6 +88,6 @@ export async function getBudgetStatus(month: string): Promise<BudgetOverview> {
     totalTarget: totalTarget,
     totalActual: totalActual,
     totalRemaining: totalTarget - totalActual,
-    rows,
+    categorizedSpending: rows,
   };
 }
