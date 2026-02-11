@@ -2,6 +2,10 @@ import { GoogleSheetsClient } from "../sheets/googleSheetsClient";
 
 type BudgetStatus = "OK" | "OVER_BUDGET" | "WARNING";
 
+interface BudgetStatusRequest {
+  month: string;
+}
+
 interface BudgetItem {
   category: string;
   target: number;
@@ -40,13 +44,20 @@ interface BudgetOverview {
  * console.log(budgetStatus.totalRemaining); // Budget remaining for January
  * ```
  */
-export async function getBudgetStatus(month: string): Promise<BudgetOverview> {
-  const sheets = new GoogleSheetsClient();
+export async function getBudgetStatus(req: BudgetStatusRequest): Promise<BudgetOverview> {
+  const month = req.month;
+  let sheets: GoogleSheetsClient;
+  try {
+    sheets = new GoogleSheetsClient();
+  } catch (error) {
+    throw new Error(`Failed to instantiate GoogleSheetsClient: ${error instanceof Error ? error.message : String(error)}`);
+  }
 
   const [budgetRows, monthlyStatsData] = await Promise.all([
     sheets.readRange("budget!A2:B17"),
     sheets.readRange("monthly_stats!E1:ZZ20"),
   ]);
+
   const budgetTargetsMap = new Map<string, number>();
   budgetRows.forEach((budgetRow) => {
     budgetTargetsMap.set(budgetRow[0], parseFloat(budgetRow[1] || "0"));
