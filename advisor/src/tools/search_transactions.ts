@@ -18,12 +18,18 @@ interface SearchParameters {
     merchant?: string;
     category?: string;
     month?: string;
+    date?: string;
     min_amount?: number;
     limit?: number;
 }
 
 export async function searchTransactions(params: SearchParameters): Promise<SearchTransactionsResult> {
-    const sheets = new GoogleSheetsClient();
+    let sheets: GoogleSheetsClient;
+    try {
+        sheets = new GoogleSheetsClient();
+    } catch (error) {
+        throw new Error(`Failed to initialize Google Sheets client: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     const transactionsData = await sheets.readRange("raw_transactions!B2:E");
 
@@ -38,7 +44,9 @@ export async function searchTransactions(params: SearchParameters): Promise<Sear
         const category = row[3] || "Uncategorized";
 
         if (params.month && !date.startsWith(params.month)) continue;
-        
+
+        if (params.date && !date.startsWith(params.date)) continue;
+
         if (params.merchant && !merchant.includes(params.merchant.toLowerCase())) continue;
         
         if (params.category && category.toLowerCase() !== params.category.toLowerCase()) continue;
