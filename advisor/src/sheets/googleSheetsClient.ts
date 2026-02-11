@@ -8,15 +8,33 @@ export class GoogleSheetsClient {
     private spreadsheetId: string;
 
     constructor() {
-        const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS || "{}");
-        this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID || "";
+        try {
+            if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+                throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY environment variable is not set");
+            }
+            const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+            this.auth = new google.auth.GoogleAuth({
+                credentials,
+                scopes: SCOPES,
+            });
+        } catch (error) {
+            throw new Error(`Failed to initialize auth: ${error instanceof Error ? error.message : String(error)}`);
+        }
 
-        this.auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: SCOPES,
-        });
-        
-        this.sheets = google.sheets({ version: "v4", auth: this.auth });
+        try {
+            this.spreadsheetId = process.env.SPREADSHEET_ID;
+            if (!this.spreadsheetId) {
+                throw new Error("SPREADSHEET_ID environment variable is not set");
+            }
+        } catch (error) {
+            throw new Error(`Failed to set spreadsheet ID: ${error instanceof Error ? error.message : String(error)}`);
+        }
+
+        try {
+            this.sheets = google.sheets({ version: "v4", auth: this.auth });
+        } catch (error) {
+            throw new Error(`Failed to initialize sheets client: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     async readRange(range: string): Promise<string[][]> {
@@ -27,7 +45,6 @@ export class GoogleSheetsClient {
             });
             return response.data.values || [];
         } catch (error) {
-            console.error("Error reading from Google Sheets:", error);
             throw new Error("Failed to read from Google Sheets");
         }
     }
