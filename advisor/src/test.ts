@@ -5,7 +5,7 @@ dotenv.config();
 
 async function run() {
     console.log("Testing budget...");
-    const budget = await getBudgetStatus("2026-01");
+    const budget = await getBudgetStatus({ month: "2026-02" });
     console.log(JSON.stringify(budget, null, 2));
 
     console.log("Testing search transactions...");
