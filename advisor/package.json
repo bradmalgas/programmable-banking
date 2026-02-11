@@ -13,10 +13,12 @@
   },
   "dependencies": {
     "@azure/functions": "^4.0.0",
+    "@google/genai": "^1.40.0",
     "dotenv": "^17.2.4",
     "googleapis": "^171.4.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/node": "18.x",
     "azure-functions-core-tools": "^4.x",
     "rimraf": "^5.0.0",
